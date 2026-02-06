@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import axios from "axios";
 
 type Conversation = {
   id: string;
@@ -23,10 +24,8 @@ export default function Sidebar() {
   const fetchConversations = useCallback(async () => {
     if (!session?.user) return;
     try {
-      const res = await fetch("/api/conversation");
-      if (!res.ok) return;
-      const { conversations: data } = await res.json();
-      setConversations(data);
+      const { data } = await axios.get("/api/conversation");
+      setConversations(data.conversations);
     } catch (error) {
       console.error("Failed to load conversations:", error);
     }

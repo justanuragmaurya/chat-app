@@ -2,24 +2,12 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import axios from "axios";
 
 export default function HomeChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [model, setModel] = useState<string>("gpt-5-mini");
   const [isSending, setIsSending] = useState(false);
   const router = useRouter();
-
-  const handleModelChange = (value: string) => {
-    setModel(value);
-  };
 
   const handleSend = async () => {
     const message = inputRef.current?.value?.trim();
@@ -28,20 +16,8 @@ export default function HomeChat() {
     setIsSending(true);
 
     try {
-      const res = await fetch("/api/conversation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        console.error("Failed to create conversation:", data.error);
-        return;
-      }
-
-      const { conversationId } = await res.json();
-      router.push(`/chat/${conversationId}`);
+      const { data } = await axios.post("/api/conversation", { message });
+      router.push(`/chat/${data.conversationId}`);
     } catch (error) {
       console.error("Error creating conversation:", error);
     } finally {
@@ -69,19 +45,7 @@ export default function HomeChat() {
           onKeyDown={handleKeyDown}
           disabled={isSending}
         />
-        <div className="flex justify-between w-full">
-          <Select onValueChange={handleModelChange} defaultValue="google/gemini-3-flash-preview">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Model" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="google/gemini-3-flash-preview">Gemini 3 Flash</SelectItem>
-                <SelectItem value="openai/gpt-5-mini">GPT 5 Mini</SelectItem>
-                <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonet</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+        <div className="flex justify-end w-full">
           <Button onClick={handleSend} disabled={isSending}>
             {isSending ? "Creating..." : "Send"}
           </Button>

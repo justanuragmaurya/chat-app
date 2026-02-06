@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "./ui/button";
+import axios from "axios";
 
 type Message = {
   role: "user" | "assistant";
@@ -25,11 +26,8 @@ export default function ChatComponent({
 
     const loadMessages = async () => {
       try {
-        const res = await fetch(`/api/conversation/${conversationId}`);
-        if (!res.ok) return;
-
-        const { messages: existingMessages } = await res.json();
-        const formatted: Message[] = existingMessages.map(
+        const { data } = await axios.get(`/api/conversation/${conversationId}`);
+        const formatted: Message[] = data.messages.map(
           (m: { role: string; content: string }) => ({
             role: m.role as "user" | "assistant",
             content: m.content,
@@ -149,13 +147,9 @@ export default function ChatComponent({
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`p-3 rounded-lg max-w-[80%] ${
-              m.role === "user"
-                ? "text-white ml-auto border rounded-2xl bg-green-500"
-                : "mr-auto"
-            }`}
+            className={`p-3 rounded-lg max-w-[80%] ${ m.role === "user"? "text-white ml-auto border rounded-2xl bg-secondary/20": "mr-auto"}`}
           >
-            <pre className="text-wrap">
+            <pre className={`text-wrap ${m.role=="user"&&"justify-self-end"}`}>
               <ReactMarkdown>{m.content}</ReactMarkdown>
             </pre>
           </div>

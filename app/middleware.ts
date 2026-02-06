@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
   const isAuthenticated = !!req.auth;
   const isAuthRoute = req.nextUrl.pathname.startsWith("/api/auth");
-  const isPublicRoute = req.nextUrl.pathname === "/";
+  const isPublicRoute = req.nextUrl.pathname === "/" || req.nextUrl.pathname === "/signin";
 
   if (isAuthRoute || isPublicRoute) {
     return NextResponse.next();
