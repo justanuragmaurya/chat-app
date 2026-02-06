@@ -1,5 +1,8 @@
 # This is what i built in last 48 hours , its a complete project (ai agent) with all the features mentioned in the document
 
+<img width="1582" height="1035" alt="Screenshot 2026-02-06 at 9 24 12 PM" src="https://github.com/user-attachments/assets/ba43b84f-4001-4194-a372-5ad70a37be02" />
+<img width="1582" height="1035" alt="Screenshot 2026-02-06 at 9 23 29 PM" src="https://github.com/user-attachments/assets/ddde8d30-ab51-491e-86fc-fa0c9c1d63d5" />
+
 1. To start the project locally :
 use `git clone https://github.com/justanuragmaurya/chat-app` to clone the repositry on your machine.
 
