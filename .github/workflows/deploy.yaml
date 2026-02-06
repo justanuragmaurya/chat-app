@@ -25,5 +25,6 @@ jobs:
                 key: ${{ secrets.EC2_SSH_KEY }}
                 script: |
                     docker pull rageydev/ai-chat-app || true
-                    docker stop ai-chat-app || true
+                    docker stop rageydev/ai-chat-app || true
+                    docker rm ragey/ai-chat-app || true
                     docker run -p 4000:4000 -d -e -e DATABASE_URL=${{secrets.DATABASE_URL}} -e LANGSEARCH_API_KEY=${{secrets.LANGSEARCH_API_KEY}} -e OPENROUTER_API_KEY=${{secrets.OPENROUTER_API_KEY}} -e GOOGLE_CLIENT_ID=${{secrets.GOOGLE_CLIENT_ID}} -e GOOGLE_CLIENT_SECRET=${{secrets.GOOGLE_CLIENT_SECRET}} -e AUTH_SECRET=${{secrets.AUTH_SECRET}} -e AUTH_URL=${{secrets.AUTH_URL}} ai-chat-app:latest
