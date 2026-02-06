@@ -2,14 +2,19 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const workspaceId = req.nextUrl.searchParams.get("workspaceId");
+
   const conversations = await prisma.conversation.findMany({
-    where: { userId: session.user.id },
+    where: {
+      userId: session.user.id,
+      ...(workspaceId ? { workspaceId } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       messages: {
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { message } = await req.json();
+  const { message, workspaceId } = await req.json();
 
   if (!message || typeof message !== "string") {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -44,6 +49,7 @@ export async function POST(req: NextRequest) {
   const conversation = await prisma.conversation.create({
     data: {
       userId: session.user.id,
+      ...(workspaceId ? { workspaceId } : {}),
       messages: {
         create: {
           role: "user",

@@ -1,6 +1,7 @@
 "use client";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/theme-provider"
+import { WorkspaceProvider } from "@/components/workspace-context"
 
 export default function Providers({children}:{children:React.ReactNode}){
     return(
@@ -11,7 +12,9 @@ export default function Providers({children}:{children:React.ReactNode}){
           disableTransitionOnChange
         >
         <SessionProvider>
-            {children}
+            <WorkspaceProvider>
+                {children}
+            </WorkspaceProvider>
         </SessionProvider>
         </ThemeProvider>
     )

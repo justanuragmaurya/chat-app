@@ -43,6 +43,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime? @map("email_verified")
   image         String?
+  workspaces    Workspace[]
   conversations Conversation[]
   messages      Message[]
   accounts      Account[]
@@ -60,12 +61,23 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+model Workspace {
+  id            String         @id @default(cuid())
+  name          String
+  createdAt     DateTime       @default(now())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+}
+
 model Conversation {
-  id        String    @id @default(cuid())
-  createdAt DateTime  @default(now())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    Message[]
 }
 
 model Message {

@@ -1,9 +1,15 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { useWorkspace } from "@/components/workspace-context";
 import axios from "axios";
+
+type Workspace = {
+  id: string;
+  name: string;
+};
 
 type Conversation = {
   id: string;
@@ -13,7 +19,13 @@ type Conversation = {
 export default function Sidebar() {
   const { data: session } = useSession();
   const [collapse, setCollapse] = useState<boolean>(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const { activeWorkspaceId, setActiveWorkspaceId } = useWorkspace();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const newWorkspaceInputRef = useRef<HTMLInputElement>(null);
+  const hasInitializedWorkspace = useRef(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -21,19 +33,65 @@ export default function Sidebar() {
     ? pathname.split("/chat/")[1]
     : null;
 
+  const fetchWorkspaces = useCallback(async () => {
+    if (!session?.user) return;
+    try {
+      const { data } = await axios.get("/api/workspace");
+      setWorkspaces(data.workspaces);
+      if (!hasInitializedWorkspace.current && data.workspaces.length > 0) {
+        hasInitializedWorkspace.current = true;
+        setActiveWorkspaceId(data.workspaces[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to load workspaces:", error);
+    }
+  }, [session?.user]);
+
   const fetchConversations = useCallback(async () => {
     if (!session?.user) return;
     try {
-      const { data } = await axios.get("/api/conversation");
+      const params = activeWorkspaceId
+        ? `?workspaceId=${activeWorkspaceId}`
+        : "";
+      const { data } = await axios.get(`/api/conversation${params}`);
       setConversations(data.conversations);
     } catch (error) {
       console.error("Failed to load conversations:", error);
     }
-  }, [session?.user]);
+  }, [session?.user, activeWorkspaceId]);
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations, pathname]);
+
+  useEffect(() => {
+    if (showNewWorkspace && newWorkspaceInputRef.current) {
+      newWorkspaceInputRef.current.focus();
+    }
+  }, [showNewWorkspace]);
+
+  const createWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
+    try {
+      const { data } = await axios.post("/api/workspace", {
+        name: newWorkspaceName.trim(),
+      });
+      setWorkspaces((prev) => [...prev, data.workspace]);
+      setActiveWorkspaceId(data.workspace.id);
+      setNewWorkspaceName("");
+      setShowNewWorkspace(false);
+    } catch (error) {
+      console.error("Failed to create workspace:", error);
+    }
+  };
+
+  const selectWorkspace = (id: string | null) => {
+    setActiveWorkspaceId(id);
+  };
 
   return (
     <div
@@ -54,6 +112,84 @@ export default function Sidebar() {
             <i className="fa-solid fa-arrow-left" />
           )}
         </Button>
+
+        {!collapse && session?.user && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Workspaces
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => setShowNewWorkspace((v) => !v)}
+                title="New Workspace"
+              >
+                <i className="fa-solid fa-plus text-xs" />
+              </Button>
+            </div>
+
+            {showNewWorkspace && (
+              <div className="flex gap-1">
+                <input
+                  ref={newWorkspaceInputRef}
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") createWorkspace();
+                    if (e.key === "Escape") {
+                      setShowNewWorkspace(false);
+                      setNewWorkspaceName("");
+                    }
+                  }}
+                  placeholder="Workspace name"
+                  className="flex-1 text-sm px-2 py-1 rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={createWorkspace}
+                >
+                  <i className="fa-solid fa-check text-xs" />
+                </Button>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-0.5 max-h-32 overflow-y-auto no-scrollbar">
+              <button
+                onClick={() => selectWorkspace(null)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-sm truncate transition-colors flex items-center gap-2 ${
+                  activeWorkspaceId === null
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50"
+                }`}
+              >
+                <i className="fa-solid fa-layer-group text-xs opacity-60" />
+                All Chats
+              </button>
+              {workspaces.map((ws) => (
+                <button
+                  key={ws.id}
+                  onClick={() => selectWorkspace(ws.id)}
+                  className={`w-full text-left px-2 py-1.5 rounded-md text-sm truncate transition-colors flex items-center gap-2 ${
+                    activeWorkspaceId === ws.id
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  }`}
+                  title={ws.name}
+                >
+                  <i className="fa-solid fa-folder text-xs opacity-60" />
+                  {ws.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="border-b my-1" />
+          </div>
+        )}
 
         {!collapse ? (
           <Button
@@ -129,7 +265,7 @@ export default function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => signOut()}
+              onClick={() => signOut({ callbackUrl: "/" })}
               title="Sign out"
               className="shrink-0"
             >
