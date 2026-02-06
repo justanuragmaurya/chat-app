@@ -12,6 +12,6 @@ COPY . .
 RUN npx prisma generate
 RUN pnpm build
 
-EXPOSE 3000
+EXPOSE 4000
 
-CMD [ "pnpm","start","--port","3000"]
+CMD [ "pnpm","start","--port","4000"]
