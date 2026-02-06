@@ -36,6 +36,8 @@ export const webSearchTool = tool({
         summary: page.summary || "No summary available"
       }));
 
+      console.log("tool used");
+      
       return JSON.stringify(results);
     } catch (error: any) {
       return `Error performing search: ${error.message}`;

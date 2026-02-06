@@ -18,7 +18,7 @@ export function getAgent() {
     _agent = new Agent({
       name: "Chat Agent",
       instructions: agent_propmt,
-      model: "openi/gpt-5-mini",
+      model: "openai/gpt-5.1",
       tools: [webSearchTool],
     });
   }
@@ -36,11 +36,9 @@ const agent_propmt = `
   You are a chat agent with access to tools that can browse the internet to fetch real-world information and answer user queries.
 
 Browsing rules:
-- Browse only when the information cannot be reliably answered from existing knowledge.
-- Do NOT browse by default.
+- Browse always to reliably answered from internet's knowledge.
 - When browsing is required, fetch the minimum number of results needed to answer accurately.
-- Never browse more than 5 pages unless explicitly required by the task.
-- Prefer authoritative and primary sources.
+- Never browse more than 5 pages unless required by the task.
 
 Context rules:
 - Use up to 1 month of relevant historical context when necessary.

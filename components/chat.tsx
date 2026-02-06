@@ -9,7 +9,7 @@ type Message = {
   content: string;
 };
 
-const CHAR_INTERVAL_MS = 18; // ~55 chars/sec — fast, smooth typing
+const CHAR_INTERVAL_MS = 1;
 
 export default function ChatComponent({
   conversationId,
@@ -19,6 +19,7 @@ export default function ChatComponent({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,21 +59,18 @@ export default function ChatComponent({
     loadMessages();
   }, [conversationId]);
 
-  // Auto-scroll when messages update
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (typewriterRef.current) clearInterval(typewriterRef.current);
     };
   }, []);
 
-  // ── Typewriter helpers ───────────────────────────────────────
   const startTypewriter = () => {
     if (typewriterRef.current) return;
 
@@ -81,7 +79,6 @@ export default function ChatComponent({
       const curLen = displayedLengthRef.current;
 
       if (curLen < bufLen) {
-        // Reveal next character
         displayedLengthRef.current = curLen + 1;
         const text = streamBufferRef.current.slice(
           0,
@@ -92,20 +89,19 @@ export default function ChatComponent({
           return [...rest, { role: "assistant" as const, content: text }];
         });
       } else if (streamDoneRef.current) {
-        // Stream finished & all chars revealed → stop
         clearInterval(typewriterRef.current!);
         typewriterRef.current = null;
         setIsLoading(false);
       }
-      // else: buffer caught up to stream; wait for more data
     }, CHAR_INTERVAL_MS);
   };
 
-  // ── Shared streaming logic ───────────────────────────────────
   const streamResponse = async (body: object) => {
     streamBufferRef.current = "";
     displayedLengthRef.current = 0;
     streamDoneRef.current = false;
+
+    let lineBuf = "";
 
     try {
       const response = await fetch("/api/chat", {
@@ -119,8 +115,6 @@ export default function ChatComponent({
         return;
       }
 
-      startTypewriter();
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
@@ -128,28 +122,44 @@ export default function ChatComponent({
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
-        const chunk = decoder.decode(value);
-        streamBufferRef.current += chunk;
+        lineBuf += decoder.decode(value, { stream: true });
+
+        const lines = lineBuf.split("\n");
+        lineBuf = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            if (event.type === "status") {
+              setStatusMessage(event.message);
+            } else if (event.type === "text") {
+              setStatusMessage(null);
+              startTypewriter();
+              streamBufferRef.current += event.content;
+            }
+          } catch {
+            console.log("Error")
+          }
+        }
       }
     } catch (error) {
       console.error("Error streaming:", error);
     } finally {
       streamDoneRef.current = true;
-      // If typewriter never started (e.g. empty response), clean up
+      setStatusMessage(null);
       if (!typewriterRef.current) {
         setIsLoading(false);
       }
     }
   };
 
-  // ── Trigger AI (e.g. on page load when last msg is user) ────
   const triggerAIResponse = async (_currentMessages?: Message[]) => {
     setIsLoading(true);
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
     await streamResponse({ conversationId });
   };
 
-  // ── Send a new user message ──────────────────────────────────
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -162,7 +172,6 @@ export default function ChatComponent({
     await streamResponse({ conversationId, message: input });
   };
 
-  // ── Render ───────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col justify-between p-5 max-w-4xl mx-auto gap-2 h-screen">
       <div
@@ -188,7 +197,16 @@ export default function ChatComponent({
           </div>
         ))}
         {isLoading && messages[messages.length - 1]?.content === "" && (
-          <div className="text-gray-400 italic">Agent is thinking...</div>
+          <div className="text-gray-400 italic flex items-center gap-2">
+            {statusMessage ? (
+              <>
+                <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                {statusMessage}
+              </>
+            ) : (
+              "Agent is thinking..."
+            )}
+          </div>
         )}
       </div>
 
