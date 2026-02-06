@@ -1,4 +1,4 @@
-import { agent, runner } from "@/lib/agents";
+import { getAgent, getRunner } from "@/lib/agents";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { NextRequest } from "next/server";
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
 
-  const result = await runner.run(agent, prompt, { stream: true });
+  const result = await getRunner().run(getAgent(), prompt, { stream: true });
 
   let fullResponse = "";
 
