@@ -9,6 +9,8 @@ type Message = {
   content: string;
 };
 
+const CHAR_INTERVAL_MS = 18; // ~55 chars/sec — fast, smooth typing
+
 export default function ChatComponent({
   conversationId,
 }: {
@@ -20,13 +22,20 @@ export default function ChatComponent({
   const hasFetchedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const streamBufferRef = useRef("");
+  const displayedLengthRef = useRef(0);
+  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamDoneRef = useRef(false);
+
   useEffect(() => {
     if (hasFetchedRef.current) return;
     hasFetchedRef.current = true;
 
     const loadMessages = async () => {
       try {
-        const { data } = await axios.get(`/api/conversation/${conversationId}`);
+        const { data } = await axios.get(
+          `/api/conversation/${conversationId}`
+        );
         const formatted: Message[] = data.messages.map(
           (m: { role: string; content: string }) => ({
             role: m.role as "user" | "assistant",
@@ -49,25 +58,68 @@ export default function ChatComponent({
     loadMessages();
   }, [conversationId]);
 
+  // Auto-scroll when messages update
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const triggerAIResponse = async (currentMessages?: Message[]) => {
-    setIsLoading(true);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typewriterRef.current) clearInterval(typewriterRef.current);
+    };
+  }, []);
 
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+  // ── Typewriter helpers ───────────────────────────────────────
+  const startTypewriter = () => {
+    if (typewriterRef.current) return;
+
+    typewriterRef.current = setInterval(() => {
+      const bufLen = streamBufferRef.current.length;
+      const curLen = displayedLengthRef.current;
+
+      if (curLen < bufLen) {
+        // Reveal next character
+        displayedLengthRef.current = curLen + 1;
+        const text = streamBufferRef.current.slice(
+          0,
+          displayedLengthRef.current
+        );
+        setMessages((prev) => {
+          const rest = prev.slice(0, -1);
+          return [...rest, { role: "assistant" as const, content: text }];
+        });
+      } else if (streamDoneRef.current) {
+        // Stream finished & all chars revealed → stop
+        clearInterval(typewriterRef.current!);
+        typewriterRef.current = null;
+        setIsLoading(false);
+      }
+      // else: buffer caught up to stream; wait for more data
+    }, CHAR_INTERVAL_MS);
+  };
+
+  // ── Shared streaming logic ───────────────────────────────────
+  const streamResponse = async (body: object) => {
+    streamBufferRef.current = "";
+    displayedLengthRef.current = 0;
+    streamDoneRef.current = false;
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId }),
+        body: JSON.stringify(body),
       });
 
-      if (!response.body) return;
+      if (!response.body) {
+        setIsLoading(false);
+        return;
+      }
+
+      startTypewriter();
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -76,24 +128,28 @@ export default function ChatComponent({
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
-        const chunkValue = decoder.decode(value);
-
-        setMessages((prev) => {
-          const lastMessage = prev[prev.length - 1];
-          const otherMessages = prev.slice(0, -1);
-          return [
-            ...otherMessages,
-            { ...lastMessage, content: lastMessage.content + chunkValue },
-          ];
-        });
+        const chunk = decoder.decode(value);
+        streamBufferRef.current += chunk;
       }
     } catch (error) {
       console.error("Error streaming:", error);
     } finally {
-      setIsLoading(false);
+      streamDoneRef.current = true;
+      // If typewriter never started (e.g. empty response), clean up
+      if (!typewriterRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
+  // ── Trigger AI (e.g. on page load when last msg is user) ────
+  const triggerAIResponse = async (_currentMessages?: Message[]) => {
+    setIsLoading(true);
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    await streamResponse({ conversationId });
+  };
+
+  // ── Send a new user message ──────────────────────────────────
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -101,43 +157,12 @@ export default function ChatComponent({
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
-
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, message: input }),
-      });
-
-      if (!response.body) return;
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        const chunkValue = decoder.decode(value);
-
-        setMessages((prev) => {
-          const lastMessage = prev[prev.length - 1];
-          const otherMessages = prev.slice(0, -1);
-          return [
-            ...otherMessages,
-            { ...lastMessage, content: lastMessage.content + chunkValue },
-          ];
-        });
-      }
-    } catch (error) {
-      console.error("Error streaming:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    await streamResponse({ conversationId, message: input });
   };
 
+  // ── Render ───────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col justify-between p-5 max-w-4xl mx-auto gap-2 h-screen">
       <div
@@ -147,9 +172,17 @@ export default function ChatComponent({
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`p-3 rounded-lg max-w-[80%] ${ m.role === "user"? "text-white ml-auto border rounded-2xl bg-secondary/20": "mr-auto"}`}
+            className={`p-3 rounded-lg max-w-[80%] ${
+              m.role === "user"
+                ? "text-white ml-auto border rounded-2xl bg-secondary/20"
+                : "mr-auto"
+            }`}
           >
-            <pre className={`text-wrap ${m.role=="user"&&"justify-self-end"}`}>
+            <pre
+              className={`text-wrap ${
+                m.role == "user" && "justify-self-end"
+              }`}
+            >
               <ReactMarkdown>{m.content}</ReactMarkdown>
             </pre>
           </div>

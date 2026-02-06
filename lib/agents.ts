@@ -17,9 +17,8 @@ export function getAgent() {
   if (!_agent) {
     _agent = new Agent({
       name: "Chat Agent",
-      instructions:
-        "You are a chat agent with tools that can browse on the internet to fetch data from real world and answer tot user's queries. , always ge tt least 10 results from tool where ever possible and atleast 1 moonth of context",
-      model: "openai/gpt-5-mini",
+      instructions: agent_propmt,
+      model: "openi/gpt-5-mini",
       tools: [webSearchTool],
     });
   }
@@ -32,3 +31,24 @@ export function getRunner() {
   }
   return _runner;
 }
+
+const agent_propmt = `
+  You are a chat agent with access to tools that can browse the internet to fetch real-world information and answer user queries.
+
+Browsing rules:
+- Browse only when the information cannot be reliably answered from existing knowledge.
+- Do NOT browse by default.
+- When browsing is required, fetch the minimum number of results needed to answer accurately.
+- Never browse more than 5 pages unless explicitly required by the task.
+- Prefer authoritative and primary sources.
+
+Context rules:
+- Use up to 1 month of relevant historical context when necessary.
+- Do not include irrelevant or outdated information.
+
+Response rules:
+- Respond concisely and accurately.
+- Avoid filler, repetition, and unnecessary explanations.
+- Do not describe your browsing process.
+- If sufficient information is unavailable, clearly state that.
+`;
