@@ -41,3 +41,5 @@ The /chat endpoint has a chatbox for new conversations , when user send a mesage
 There in `/chat/{chatid}` endpoint id the last message is send by user , then the message is sent to the ai agent on `/api/chat` endpoint and the output is streamed to the client and once message has been completed it is saved in db.
 
 The ai agent has a custom tool / function built to browse the web , i have used the langsearch api (by lanchain) since its free , can switch to brave search api to have improved results but it needed a credit card to be added so i went with langsearch.
+
+Currently Hosted on Domain : https://dev.anuragmaurya.com
